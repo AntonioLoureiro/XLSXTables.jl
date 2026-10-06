@@ -1,0 +1,12 @@
+[deps]
+DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
+Dates = "ade2ca70-3891-5945-98fb-dc099432e06a"
+XLSX = "fdbf4ff8-1666-58a4-91e7-1b58723a45e0"
+XLSXTables = "9c27da08-6198-4fe6-96a8-25421dcfcf02"
+
+[compat]
+DataFrames = "1"
+Dates = "1.10"
+XLSX = "0.13"
+XLSXTables = "0.1"
+julia = "1.10"

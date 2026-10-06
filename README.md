@@ -136,6 +136,59 @@ rectangle; an explicit column width affects the whole worksheet column.
 Use `header=false` to omit headers. Tables with no rows but known columns can
 write just their headers. Tables without columns are rejected.
 
+## Empty workbook, reusable header style, and a DataFrame
+
+The runnable example [examples/dataframe_workbook.jl](examples/dataframe_workbook.jl)
+creates an empty file, defines a reusable header style, then adds a sheet from
+a DataFrame and saves the completed workbook.
+
+From the repository root, install the optional example dependencies and run it:
+
+```sh
+julia --project=examples -e 'using Pkg; Pkg.develop(path="."); Pkg.instantiate()'
+julia --project=examples examples/dataframe_workbook.jl
+```
+
+It creates `dataframe_report.xlsx` in the current directory. You can supply a
+different filename as the script's first argument. The initial save refuses
+to overwrite an existing file.
+
+The main steps are:
+
+```julia
+using DataFrames, Dates, XLSXTables
+import XLSX
+
+workbook = XLSX.newxlsx()
+placeholder = workbook[1]
+XLSX.writexlsx("dataframe_report.xlsx", workbook)
+
+default_header = CellStyle(
+    font=(name="Calibri", size=11, bold=true, color="FFFFFFFF"),
+    fill=(pattern="solid", fgColor="FF24476B"),
+    alignment=(horizontal="left", vertical="center", wrapText=true),
+)
+default_style = TableStyle(header=default_header)
+
+df = DataFrame(
+    date=[Date(2026, 10, 1), Date(2026, 10, 2)],
+    description=["Consulting", "Software"],
+    quantity=[10, 1],
+    amount=[1250.0, 89.90],
+)
+
+sheet = XLSX.addsheet!(workbook, "Transactions")
+write_table!(sheet, df; style=default_style)
+
+XLSX.deletesheet!(placeholder)
+XLSX.writexlsx("dataframe_report.xlsx", workbook; overwrite=true)
+```
+
+`default_style` is a reusable configuration passed to each `write_table!`
+call; the current API does not register defaults on a workbook. Body number
+formats still come from the standard type rules. The initial blank sheet is
+removed after adding `Transactions`, leaving just the populated sheet.
+
 ## Scope and data handling
 
 - Exports formatted worksheet cells; does not create native Excel Table objects.
