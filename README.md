@@ -61,6 +61,45 @@ inference. For abstract or `Any` columns, the common type of nonblank values is
 used. A truly heterogeneous column may have no matching rule, in which case its
 body format is retained. An explicit column style always applies.
 
+### Define your own defaults by type
+
+Pass an ordered list of `JuliaType => "Excel format code"` rules to
+`TableStyle(type_formats=...)`:
+
+```julia
+using Dates, XLSXTables
+
+default_formats = [
+    Bool => "General",
+    Integer => "0",
+    AbstractFloat => "#,##0.000",
+    Date => "dd-mm-yyyy",
+    DateTime => "dd-mm-yyyy hh:mm:ss",
+    Time => "hh:mm",
+    AbstractString => "@",
+]
+
+default_style = TableStyle(
+    header=CellStyle(font=(bold=true,)),
+    type_formats=default_formats,
+)
+
+write_table!(sheet, df; style=default_style)
+```
+
+`Integer` covers `Int`, `Int32`, `Int64`, and unsigned integer types.
+`AbstractFloat` covers floating-point types such as `Float32` and `Float64`.
+You can also use a concrete type, such as `Float32`, for a more specific rule.
+**The first matching rule wins**; put `Bool` before `Integer` because
+`Bool <: Integer`. Likewise, put `Float32` before `AbstractFloat` if both appear.
+
+These are Excel display format codes, not Julia `Dates.DateFormat` patterns.
+Rules apply to each column's nonmissing type, including columns such as
+`Union{Missing, Float64}`. Supplying `type_formats` replaces the built-in rule
+list; reuse the same `TableStyle` in subsequent exports to keep your defaults.
+Use `column_styles` for exceptions, for example
+`:tax_rate => CellStyle(number_format="0.0%")`.
+
 ## Formatting layers
 
 Data cells receive **body style → first matching type rule → column override**.
@@ -86,7 +125,9 @@ style = TableStyle(
 
 Type rules are ordered; **the first match wins**. Prepend specific rules to
 `default_type_formats()` to override defaults, or supply your own complete
-list. Set `type_formats=[]` to use only body and column formatting.
+list. When prepending an `Integer` rule, put a `Bool` rule before it if booleans
+should keep their own format. Set `type_formats=[]` to use only body and column
+formatting.
 
 `CellStyle` supports `number_format`, `font`, `fill`, `border`, and `alignment`.
 The four named-tuple fields forward keywords to XLSX.jl's corresponding public
@@ -139,8 +180,8 @@ write just their headers. Tables without columns are rejected.
 ## Empty workbook, reusable header style, and a DataFrame
 
 The runnable example [examples/dataframe_workbook.jl](examples/dataframe_workbook.jl)
-creates an empty file, defines a reusable header style, then adds a sheet from
-a DataFrame and saves the completed workbook.
+creates an empty file, defines a reusable header style and number formats by
+type, then adds a sheet from a DataFrame and saves the completed workbook.
 
 From the repository root, install the optional example dependencies and run it:
 
@@ -168,13 +209,30 @@ default_header = CellStyle(
     fill=(pattern="solid", fgColor="FF24476B"),
     alignment=(horizontal="left", vertical="center", wrapText=true),
 )
-default_style = TableStyle(header=default_header)
+default_formats = [
+    Bool => "General",
+    Integer => "0",
+    AbstractFloat => "#,##0.000",
+    Date => "dd-mm-yyyy",
+    DateTime => "dd-mm-yyyy hh:mm:ss",
+    Time => "hh:mm",
+    AbstractString => "@",
+]
+default_style = TableStyle(
+    header=default_header,
+    type_formats=default_formats,
+    column_styles=Dict(:tax_rate => CellStyle(number_format="0.0%")),
+)
 
 df = DataFrame(
     date=[Date(2026, 10, 1), Date(2026, 10, 2)],
     description=["Consulting", "Software"],
     quantity=[10, 1],
     amount=[1250.0, 89.90],
+    tax_rate=[0.23, 0.23],
+    recorded_at=[DateTime(2026, 10, 1, 9, 30), DateTime(2026, 10, 2, 14, 15)],
+    start_time=[Time(9, 30), Time(14, 15)],
+    approved=[true, false],
 )
 
 sheet = XLSX.addsheet!(workbook, "Transactions")
@@ -186,8 +244,9 @@ XLSX.writexlsx("dataframe_report.xlsx", workbook; overwrite=true)
 
 `default_style` is a reusable configuration passed to each `write_table!`
 call; the current API does not register defaults on a workbook. Body number
-formats still come from the standard type rules. The initial blank sheet is
-removed after adding `Transactions`, leaving just the populated sheet.
+formats come from `default_formats`, with `tax_rate` displayed as a percentage
+through its column override. The initial blank sheet is removed after adding
+`Transactions`, leaving just the populated sheet.
 
 ## Scope and data handling
 
