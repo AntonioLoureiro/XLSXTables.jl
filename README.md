@@ -248,6 +248,71 @@ formats come from `default_formats`, with `tax_rate` displayed as a percentage
 through its column override. The initial blank sheet is removed after adding
 `Transactions`, leaving just the populated sheet.
 
+## Conditional formatting of numbers
+
+The runnable [examples/conditional_numbers.jl](examples/conditional_numbers.jl)
+demonstrates both number-format sections and native Excel conditional rules.
+Run it with the examples environment configured above:
+
+```sh
+julia --project=examples examples/conditional_numbers.jl
+```
+
+### Different display for positive, negative, and zero values
+
+Excel number formats can contain `positive;negative;zero` sections. These can
+be used as your type defaults:
+
+```julia
+style = TableStyle(
+    type_formats=[
+        Bool => "General",
+        Integer => "#,##0;[Red](#,##0);\"-\"",
+        AbstractFloat => "#,##0.00;[Red](#,##0.00);\"-\"",
+        default_type_formats()...,
+    ],
+)
+```
+
+Positive numbers use the first section, negative numbers appear in red with
+parentheses, and zero appears as a dash. Stored values remain numeric. For a
+percentage column, use `CellStyle(number_format="0.0%;[Red](0.0%);\"-\"")`.
+
+### Highlight numbers against a threshold
+
+After `write_table!`, use XLSX.jl's public conditional-formatting API on the
+data cells. For a DataFrame written at `A1` with headers:
+
+```julia
+import XLSX
+
+write_table!(sheet, df; style)
+amount_column = findfirst(==(:amount), propertynames(df))
+
+if nrow(df) > 0
+    data_rows = 2:(nrow(df) + 1)
+    XLSX.setConditionalFormat(sheet, data_rows, amount_column, :cellIs;
+        operator="lessThan", value="0", dxStyle="redfilltext",
+    )
+    XLSX.setConditionalFormat(sheet, data_rows, amount_column, :cellIs;
+        operator="greaterThan", value="1000", dxStyle="greenfilltext",
+    )
+end
+
+XLSX.writexlsx("conditional_numbers.xlsx", workbook)
+```
+
+Negative amounts get a light red fill and dark red text; amounts greater than
+1,000 get a light green fill and dark green text. The header is excluded.
+Adjust the row and column offsets if you use a different anchor or omit the
+header. XLSX.jl expects comparison values as strings, such as `"1000"`.
+
+Conditional rules are applied through XLSX.jl after table export; they are not
+fields of `TableStyle`. They are stored in the workbook and evaluated by Excel
+when values change within the specified range. Rows added beyond that range
+need an updated rule range. XLSX.jl also supports formulas, colour scales, and
+data bars; see its [conditional-formatting guide](https://juliadata.org/XLSX.jl/stable/formatting/conditionalFormatting/).
+
 ## Scope and data handling
 
 - Exports formatted worksheet cells; does not create native Excel Table objects.
