@@ -145,6 +145,70 @@ for accepted attribute names and values. `column_styles`, `column_widths`, and
 `column_labels` accept dictionaries or named tuples with original column names;
 unknown names raise an error to catch typos. Widths are in Excel character units.
 
+## Automatic column widths
+
+Column sizing is **on by default** for both `write_xlsx` and `write_table!`.
+Each column uses its header label and formatted values to estimate the width,
+with 2 units of padding, a minimum of 10, and a maximum of 50. No extra option
+is needed:
+
+```julia
+write_xlsx("report.xlsx", data)
+```
+
+Configure reusable defaults through `TableStyle`:
+
+```julia
+style = TableStyle(
+    auto_width=true,
+    min_width=10,
+    max_width=45,
+    width_padding=2,
+    wrap_long_text=true,
+    column_widths=Dict(:description => 28), # Explicit widths always win.
+)
+write_xlsx("report.xlsx", data; style)
+```
+
+`column_widths` overrides the estimate even outside the automatic limits.
+Text exceeding `max_width` is wrapped unless its alignment explicitly sets
+`wrapText`. Set `wrap_long_text=false` to disable this automatic wrapping;
+explicit header/body alignment still applies. Manual width overrides leave
+wrapping unchanged.
+
+Turn sizing off for a single export, or in a reusable style:
+
+```julia
+write_xlsx("report.xlsx", data; auto_width=false)
+write_table!(sheet, data; style=TableStyle(auto_width=false))
+```
+
+The per-call `auto_width` keyword overrides `style.auto_width`. When sizing is
+off, existing worksheet widths are preserved except for explicit
+`column_widths`. With sizing on, widths are calculated from the current table,
+and affect the **entire worksheet column**, including cells outside the table.
+They are saved in the workbook and do not recalculate after edits in Excel.
+
+Estimates account for common numeric formats (grouping, decimal places,
+percentages, currency, positive/negative/zero sections), date/time formats,
+font size, bold text, Unicode width, and the longest line of multiline text.
+`column_labels` is used for displayed headers; `header=false` excludes them.
+Empty tables size their headers, while empty tables without headers leave
+automatic widths alone.
+
+This approximates Excel AutoFit. Font metrics, localized date/currency text,
+uncommon custom formats, and conditional-formatting rules added after export
+can differ from the estimate. Set an explicit width for precise layouts.
+Wrapping does not set a fixed row height; the spreadsheet viewer controls it.
+
+See [examples/automatic_widths.jl](examples/automatic_widths.jl) for a runnable
+workbook comparing automatic sizing, reusable limits and overrides, and the
+disabled option:
+
+```sh
+julia --project examples/automatic_widths.jl
+```
+
 ## Multiple worksheets
 
 ```julia
@@ -172,8 +236,9 @@ write_table!(summary, (total=[1339.90],); style=TableStyle())
 XLSX.writexlsx("custom-report.xlsx", book; overwrite=true)
 ```
 
-`write_table!` returns the worksheet and only writes inside the table's
-rectangle; an explicit column width affects the whole worksheet column.
+`write_table!` returns the worksheet and writes cell values and styles inside
+the table's rectangle; automatic and explicit widths affect the whole worksheet
+column. Use `auto_width=false` to preserve existing widths unless overridden.
 Use `header=false` to omit headers. Tables with no rows but known columns can
 write just their headers. Tables without columns are rejected.
 

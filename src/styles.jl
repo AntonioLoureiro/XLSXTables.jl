@@ -32,13 +32,19 @@ default_type_formats() = Pair{Type,String}[
 ]
 
 """
-    TableStyle(; header, body, type_formats, column_styles, column_widths)
+    TableStyle(; header, body, type_formats, column_styles, column_widths,
+                 auto_width=true, min_width=10, max_width=50, width_padding=2,
+                 wrap_long_text=true)
 
 Configure a whole table. Data cells receive, in order: `body`, the first
 matching `type_formats` rule, then the named `column_styles` override.
 Headers use `header` independently. Column keys refer to the original column
 names and can be strings or symbols. Widths use Excel character units and
-affect the entire worksheet column.
+affect the entire worksheet column. Automatic widths estimate formatted values
+and headers, with padding and limits. Explicit `column_widths` always win.
+`wrap_long_text` wraps text exceeding the automatic width cap unless `wrapText`
+was explicitly configured. Sizing approximates Excel AutoFit; it does not use
+an Excel rendering engine. Disable with `auto_width=false`.
 """
 struct TableStyle
     header::CellStyle
@@ -46,6 +52,11 @@ struct TableStyle
     type_formats::Vector{Pair{Type,String}}
     column_styles::Dict{Symbol,CellStyle}
     column_widths::Dict{Symbol,Float64}
+    auto_width::Bool
+    min_width::Float64
+    max_width::Float64
+    width_padding::Float64
+    wrap_long_text::Bool
 end
 
 function TableStyle(;
@@ -58,6 +69,11 @@ function TableStyle(;
     type_formats=default_type_formats(),
     column_styles=Dict{Symbol,CellStyle}(),
     column_widths=Dict{Symbol,Float64}(),
+    auto_width::Bool=true,
+    min_width::Real=10,
+    max_width::Real=50,
+    width_padding::Real=2,
+    wrap_long_text::Bool=true,
 )
     rules = Pair{Type,String}[]
     for (T, fmt) in type_formats
@@ -69,8 +85,16 @@ function TableStyle(;
     widths = _named_dict(Float64, column_widths)
     all(w -> isfinite(w) && 0 <= w <= 255, values(widths)) ||
         throw(ArgumentError("column widths must be finite and between 0 and 255"))
-    return TableStyle(header, body, rules, overrides, widths)
+    all(isfinite, (min_width, max_width, width_padding, Float64(width_padding))) &&
+        0 <= min_width <= max_width <= 255 && width_padding >= 0 ||
+        throw(ArgumentError("width limits must satisfy 0 <= min_width <= max_width <= 255; padding must be finite and nonnegative"))
+    return TableStyle(header, body, rules, overrides, widths, auto_width,
+        Float64(min_width), Float64(max_width), Float64(width_padding), wrap_long_text)
 end
+
+# Preserve the original positional constructor, applying the same validation.
+TableStyle(header::CellStyle, body::CellStyle, type_formats, column_styles, column_widths) =
+    TableStyle(; header, body, type_formats, column_styles, column_widths)
 
 function _named_dict(::Type{V}, entries) where V
     result = Dict{Symbol,V}()

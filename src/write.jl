@@ -48,7 +48,7 @@ function _excel_value(x::Real)
 end
 _excel_value(x) = throw(ArgumentError("unsupported Excel value of type $(typeof(x)); convert it to a string or supported scalar first"))
 
-function _prepare(table, anchor, header, labels, style)
+function _prepare(table, anchor, header, labels, style, auto_width)
     Tables.istable(table) || throw(ArgumentError("table must implement the Tables.jl interface"))
     columns = Tables.columns(table)
     names = Symbol.(collect(Tables.columnnames(columns)))
@@ -67,12 +67,21 @@ function _prepare(table, anchor, header, labels, style)
     styles = [_data_style(style, name, data[i]) for (i, name) in enumerate(names)]
     # Validate and convert all cells before mutating a supplied worksheet.
     values = [map(_excel_value, column) for column in data]
-    return (; names, values, styles, labels=[get(labelmap, n, string(n)) for n in names],
-        row, col, nrows, header, style)
+    labels = [get(labelmap, n, string(n)) for n in names]
+    layouts = map(eachindex(names)) do j
+        if haskey(style.column_widths, names[j])
+            (; width=style.column_widths[names[j]], wrap_body=false, wrap_header=false)
+        elseif auto_width && (header || nrows > 0)
+            _column_layout(values[j], labels[j], styles[j], style, header)
+        else
+            (; width=nothing, wrap_body=false, wrap_header=false)
+        end
+    end
+    return (; names, values, styles, labels, layouts, row, col, nrows, header, style)
 end
 
 function _write_prepared!(sheet::XLSX.Worksheet, prepared)
-    (; names, values, styles, labels, row, col, nrows, header, style) = prepared
+    (; names, values, styles, labels, layouts, row, col, nrows, header, style) = prepared
     for (j, column) in enumerate(values)
         target_col = col + j - 1
         header && (sheet[row, target_col] = labels[j])
@@ -80,33 +89,43 @@ function _write_prepared!(sheet::XLSX.Worksheet, prepared)
             sheet[row + Int(header) + i - 1, target_col] = value
         end
         if nrows > 0
+            body = layouts[j].wrap_body ?
+                _merge_style(styles[j], CellStyle(alignment=(wrapText=true,))) : styles[j]
             _apply_style!(sheet, _range(row + Int(header), target_col,
-                row + Int(header) + nrows - 1, target_col), styles[j])
+                row + Int(header) + nrows - 1, target_col), body)
         end
-        if haskey(style.column_widths, names[j])
-            XLSX.setColumnWidth(sheet, _column_name(target_col); width=style.column_widths[names[j]])
+        if !isnothing(layouts[j].width)
+            XLSX.setColumnWidth(sheet, _column_name(target_col); width=layouts[j].width)
         end
     end
     if header
         _apply_style!(sheet, _range(row, col, row, col + length(names) - 1), style.header)
+        for (j, layout) in enumerate(layouts)
+            layout.wrap_header && XLSX.setAlignment(sheet, _cell(row, col + j - 1); wrapText=true)
+        end
     end
     return sheet
 end
 
 """
-    write_table!(sheet, table; anchor="A1", header=true, column_labels=Dict(), style=TableStyle())
+    write_table!(sheet, table; anchor="A1", header=true, column_labels=Dict(),
+                 style=TableStyle(), auto_width=style.auto_width)
 
 Write a Tables.jl source into an existing writable XLSX worksheet and return
 that worksheet. Data outside the destination rectangle is left alone; existing
-cells inside it are overwritten. Column widths, when provided, affect the whole
-worksheet column. Empty tables with known columns can still write headers.
+cells inside it are overwritten. Column widths are estimated from the written
+headers and formatted values by default, and affect the whole worksheet column.
+Explicit `style.column_widths` always win. Set `auto_width=false` to preserve
+existing widths except for explicit overrides. Empty tables with known columns
+can still write headers; with `header=false`, they leave automatic widths alone.
 This writes formatted cells, not a native Excel Table object.
 """
 function write_table!(sheet::XLSX.Worksheet, table;
     anchor::AbstractString="A1", header::Bool=true,
     column_labels=Dict{Symbol,String}(), style::TableStyle=TableStyle(),
+    auto_width::Bool=style.auto_width,
 )
-    return _write_prepared!(sheet, _prepare(table, anchor, header, column_labels, style))
+    return _write_prepared!(sheet, _prepare(table, anchor, header, column_labels, style, auto_width))
 end
 
 function _sheet_name(name)
@@ -139,6 +158,7 @@ end
 function write_xlsx(path::AbstractString, first_sheet::Pair, other_sheets::Pair...;
     overwrite::Bool=false, anchor::AbstractString="A1", header::Bool=true,
     column_labels=Dict{Symbol,String}(), style::TableStyle=TableStyle(),
+    auto_width::Bool=style.auto_width,
 )
     destination = abspath(path)
     ispath(destination) && !overwrite && throw(ArgumentError("file already exists; pass overwrite=true: $path"))
@@ -147,7 +167,7 @@ function write_xlsx(path::AbstractString, first_sheet::Pair, other_sheets::Pair.
     names = [_sheet_name(first(pair)) for pair in sheets]
     length(unique(lowercase.(names))) == length(names) ||
         throw(ArgumentError("sheet names must be unique (case-insensitive)"))
-    prepared = [_prepare(last(pair), anchor, header, column_labels, style) for pair in sheets]
+    prepared = [_prepare(last(pair), anchor, header, column_labels, style, auto_width) for pair in sheets]
     workbook = XLSX.newxlsx()
     for (i, name) in enumerate(names)
         sheet = i == 1 ? workbook[1] : XLSX.addsheet!(workbook, name)

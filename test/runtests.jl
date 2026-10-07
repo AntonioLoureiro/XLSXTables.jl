@@ -149,3 +149,5 @@ formatcode(sheet, cell) = XLSX.getFormat(sheet, cell).format["numFmt"]["formatCo
         end
     end
 end
+
+include("widths.jl")
