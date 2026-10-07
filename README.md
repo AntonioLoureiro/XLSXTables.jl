@@ -44,16 +44,38 @@ write_xlsx("report.xlsx", data; sheetname="Transactions", style)
 Existing output files require `overwrite=true`. Number formatting changes the
 display of values; a percentage such as `0.23` remains numeric `0.23` in Excel.
 
+## Default appearance
+
+`TableStyle()` includes the following defaults, also used when no `style` is
+passed to `write_xlsx` or `write_table!`:
+
+- Headers: Calibri 11, bold white text, solid orange `#FD5108` background,
+  horizontally and vertically centered, with text wrapping enabled.
+- Data: Calibri 11 with a solid light-grey `#F2F2F2` background.
+- Automatic column widths enabled, with number formats chosen by column type.
+
+No style setup is needed to get this appearance:
+
+```julia
+write_xlsx("report.xlsx", df)
+# Or, in an existing workbook:
+write_table!(sheet, df)
+```
+
+Custom `header`, `body`, `type_formats`, and `column_styles` remain available
+through `TableStyle`. Colors are stored as opaque ARGB (`FFFD5108` and
+`FFF2F2F2`).
+
 ## Default number formats
 
 | Julia column type | Excel format |
 | --- | --- |
 | `Bool` | `General` |
-| `Integer` | `#,##0` |
+| `Integer` | `0` |
 | `AbstractFloat` | `#,##0.00` |
 | `Date` | `yyyy-mm-dd` |
 | `DateTime` | `yyyy-mm-dd hh:mm:ss` |
-| `Time` | `hh:mm:ss` |
+| `Time` | `hh:mm` |
 | `AbstractString` | `@` |
 
 `missing` and `nothing` become blank cells. They are excluded from column type
@@ -242,11 +264,12 @@ column. Use `auto_width=false` to preserve existing widths unless overridden.
 Use `header=false` to omit headers. Tables with no rows but known columns can
 write just their headers. Tables without columns are rejected.
 
-## Empty workbook, reusable header style, and a DataFrame
+## Empty workbook and a DataFrame with default styling
 
 The runnable example [examples/dataframe_workbook.jl](examples/dataframe_workbook.jl)
-creates an empty file, defines a reusable header style and number formats by
-type, then adds a sheet from a DataFrame and saves the completed workbook.
+creates an empty file, adds a sheet from a DataFrame using the package defaults,
+and saves the completed workbook. It also demonstrates a percentage override
+for one column.
 
 From the repository root, install the optional example dependencies and run it:
 
@@ -269,23 +292,7 @@ workbook = XLSX.newxlsx()
 placeholder = workbook[1]
 XLSX.writexlsx("dataframe_report.xlsx", workbook)
 
-default_header = CellStyle(
-    font=(name="Calibri", size=11, bold=true, color="FFFFFFFF"),
-    fill=(pattern="solid", fgColor="FF24476B"),
-    alignment=(horizontal="left", vertical="center", wrapText=true),
-)
-default_formats = [
-    Bool => "General",
-    Integer => "0",
-    AbstractFloat => "#,##0.000",
-    Date => "dd-mm-yyyy",
-    DateTime => "dd-mm-yyyy hh:mm:ss",
-    Time => "hh:mm",
-    AbstractString => "@",
-]
 default_style = TableStyle(
-    header=default_header,
-    type_formats=default_formats,
     column_styles=Dict(:tax_rate => CellStyle(number_format="0.0%")),
 )
 
@@ -308,10 +315,11 @@ XLSX.writexlsx("dataframe_report.xlsx", workbook; overwrite=true)
 ```
 
 `default_style` is a reusable configuration passed to each `write_table!`
-call; the current API does not register defaults on a workbook. Body number
-formats come from `default_formats`, with `tax_rate` displayed as a percentage
-through its column override. The initial blank sheet is removed after adding
-`Transactions`, leaving just the populated sheet.
+call; the current API does not register defaults on a workbook. Header and body
+styles, number formats, and automatic widths come from the package defaults,
+with `tax_rate` displayed as a percentage through its column override. Omit
+`style` entirely to use all built-in defaults. The initial blank sheet is removed
+after adding `Transactions`, leaving just the populated sheet.
 
 ## Conditional formatting of numbers
 

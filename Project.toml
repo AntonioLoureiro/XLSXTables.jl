@@ -1,7 +1,7 @@
 name = "XLSXTables"
 uuid = "9c27da08-6198-4fe6-96a8-25421dcfcf02"
 authors = ["Antonio Loureiro"]
-version = "0.1.1"
+version = "0.1.2"
 
 [deps]
 Dates = "ade2ca70-3891-5945-98fb-dc099432e06a"

@@ -36,14 +36,14 @@ formatcode(sheet, cell) = XLSX.getFormat(sheet, cell).format["numFmt"]["formatCo
             @test sheet["G2"] == "0012"
             @test sheet["G3"] == "=1+1"
             @test ismissing(sheet["H2"])
-            @test formatcode(sheet, "A2") == "#,##0"
+            @test formatcode(sheet, "A2") == "0"
             @test formatcode(sheet, "B3") == "#,##0.00"
             @test formatcode(sheet, "C2") == "yyyy-mm-dd"
             @test formatcode(sheet, "D2") == "yyyy-mm-dd hh:mm:ss"
-            @test formatcode(sheet, "E2") == "hh:mm:ss"
+            @test formatcode(sheet, "E2") == "hh:mm"
             @test formatcode(sheet, "G2") == "@"
             @test haskey(XLSX.getFont(sheet, "A1").font, "b")
-            @test XLSX.getFill(sheet, "A1").fill["patternFill"]["fgrgb"] == "FF24476B"
+            @test XLSX.getFill(sheet, "A1").fill["patternFill"]["fgrgb"] == "FFFD5108"
         end
 
         @testset "Layered style overrides and anchors" begin

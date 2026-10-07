@@ -11,24 +11,10 @@ workbook = XLSX.newxlsx()
 placeholder = workbook[1]
 XLSX.writexlsx(output, workbook)  # Refuse to overwrite an existing file.
 
-# 2. Define the header style and type formats to reuse for every table.
-default_header = CellStyle(
-    font=(name="Calibri", size=11, bold=true, color="FFFFFFFF"),
-    fill=(pattern="solid", fgColor="FF24476B"),
-    alignment=(horizontal="left", vertical="center", wrapText=true),
-)
-default_formats = [
-    Bool => "General",                 # Before Integer: Bool is an Integer subtype.
-    Integer => "0",                    # Int, Int32, Int64, unsigned integers, etc.
-    AbstractFloat => "#,##0.000",       # Float32, Float64, etc.; three decimal places.
-    Date => "dd-mm-yyyy",
-    DateTime => "dd-mm-yyyy hh:mm:ss",
-    Time => "hh:mm",
-    AbstractString => "@",
-]
+# 2. Reuse the package defaults: orange centered headers, light-grey data,
+#    Calibri 11, default_type_formats(), and automatic column widths.
+#    TableStyle() alone is sufficient; this example adds one column override.
 default_style = TableStyle(
-    header=default_header,
-    type_formats=default_formats,
     column_styles=Dict(
         # A column override takes precedence over its type's default format.
         :tax_rate => CellStyle(number_format="0.0%"),

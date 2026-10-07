@@ -23,11 +23,11 @@ The first matching rule wins, so put specific types before abstract types.
 """
 default_type_formats() = Pair{Type,String}[
     Bool => "General",
-    Integer => "#,##0",
+    Integer => "0",
     AbstractFloat => "#,##0.00",
     Date => "yyyy-mm-dd",
     DateTime => "yyyy-mm-dd hh:mm:ss",
-    Time => "hh:mm:ss",
+    Time => "hh:mm",
     AbstractString => "@",
 ]
 
@@ -45,6 +45,10 @@ and headers, with padding and limits. Explicit `column_widths` always win.
 `wrap_long_text` wraps text exceeding the automatic width cap unless `wrapText`
 was explicitly configured. Sizing approximates Excel AutoFit; it does not use
 an Excel rendering engine. Disable with `auto_width=false`.
+
+Default headers use Calibri 11, bold white text, a solid orange (#FD5108)
+background, centered horizontal/vertical alignment, and wrapped text. Default
+data cells use Calibri 11 and a solid light-grey (#F2F2F2) background.
 """
 struct TableStyle
     header::CellStyle
@@ -61,11 +65,14 @@ end
 
 function TableStyle(;
     header::CellStyle=CellStyle(
-        font=(bold=true, color="FFFFFFFF"),
-        fill=(pattern="solid", fgColor="FF24476B"),
-        alignment=(vertical="center", wrapText=true),
+        font=(name="Calibri", size=11, bold=true, color="FFFFFFFF"),
+        fill=(pattern="solid", fgColor="FFFD5108"),
+        alignment=(horizontal="center", vertical="center", wrapText=true),
     ),
-    body::CellStyle=CellStyle(font=(name="Calibri", size=11)),
+    body::CellStyle=CellStyle(
+        font=(name="Calibri", size=11),
+        fill=(pattern="solid", fgColor="FFF2F2F2"),
+    ),
     type_formats=default_type_formats(),
     column_styles=Dict{Symbol,CellStyle}(),
     column_widths=Dict{Symbol,Float64}(),
